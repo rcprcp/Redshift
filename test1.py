@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import sys
 import psycopg2
 from configparser import ConfigParser
 
@@ -13,11 +14,11 @@ def config(filename='database.ini', section='redshift'):
     db = {}
     if parser.has_section(section):
         params = parser.items(section)
-        print(params)
+        # convert from list to map.
         for param in params:
             db[param[0]] = param[1]
     else:
-        raise Exception('Filename {0} does not have a {1} section.'.format(filename, section))
+        raise Exception('{0} does not have a {1} section.'.format(filename, section))
  
     return db
 
@@ -39,35 +40,49 @@ def connect():
     finally:
         return conn
 
+def do_insert(conn, autocomplete, tuples): 
+   
+    part = ""
+    for tup in tuples:
+        part += "({},{},{}),".format(*tup)
+
+    part = part[:-1]        # chop last character (the comma)
+    insert_statement = "INSERT INTO bob (id, fname, lname) VALUES " + part
+
+    try:
+        cur.execute(insert_statement) 
+        if autocomplete: 
+            conn.commit()
+    except (Exception, psycopg2.DatabaseError) as error:
+        print(error)
+        return False
+
+    return True
+
 
 if __name__ == '__main__':
-    print("hello")
+
     conn = connect()
     cur = conn.cursor()
 
-    cur.execute('delete from bob')
+    cur.execute('DELETE FROM bob')
     conn.commit()
 
     i = 1
     tuples = []
-    while i <= 50000: 
+    while i <= 22277: 
         if i % 100 == 0:
-            part = ""
-            for tup in tuples:
-                part += "({},{},{}),".format(*tup)
-
-            part = part[:-1]        #chop last character.
-            insert = "INSERT INTO bob (id, fname, lname) VALUES " + part
+            if not do_insert(conn, True, tuples):
+                print("do_insert() failed.")
+                sys.exit(27)
             tuples = []
-            
-            try:
-                cur.execute(insert) 
-                conn.commit()
-            except (Exception, psycopg2.DatabaseError) as error:
-                print(error)
 
         tuples.append((i, i, i));
         i += 1
+
+    # check if there are leftover tuples to INSERT
+    if len(tuples) > 0:
+        do_insert(conn, True, tuples);
 
     # execute a statement
     cur.execute('SELECT version()')
