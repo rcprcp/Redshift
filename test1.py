@@ -1,16 +1,18 @@
 #!/usr/bin/python
-
-import sys
-import psycopg2
+"""
+    test program to DELETE, INSERT and SELECT
+    from an AWS Redshift database.
+"""
 from configparser import ConfigParser
+import psycopg2
 
 def config(filename='database.ini', section='redshift'):
-    """ Parses .ini file, returns a map of the contents. 
+    """ Parses .ini file, returns a map of the contents.
     """
 
     parser = ConfigParser()
     parser.read(filename)
- 
+
     db = {}
     if parser.has_section(section):
         params = parser.items(section)
@@ -19,39 +21,47 @@ def config(filename='database.ini', section='redshift'):
             db[param[0]] = param[1]
     else:
         raise Exception('{0} does not have a {1} section.'.format(filename, section))
- 
+
     return db
 
-
 def connect():
-    """ Connect to the database server 
     """
-    conn = None
+        Connect to the database server
+    """
 
     try:
         params = config()
-          
-        conn = psycopg2.connect(**params)
- 
+
+        local_conn = psycopg2.connect(**params)
+
     except (Exception, psycopg2.DatabaseError) as error:
         print(error)
         return None
 
-    finally:
-        return conn
+    return local_conn
 
-def do_insert(conn, autocomplete, tuples): 
-   
+def do_insert(conn, should_commit, tuples):
+    """
+        Create a multi-value insert statement and execute it.
+
+        :param conn - database connection object
+        :param should_commit - boolean to commit/not commit after executing the INSERT
+        :param tuples - list of tuples containing the data elements.
+
+        :returns boolean indicating success or failure.
+    """
+
     part = ""
     for tup in tuples:
         part += "({},{},{}),".format(*tup)
 
-    part = part[:-1]        # chop last character (the comma)
+    part = part[:-1]        # chop last character (the trailing comma)
     insert_statement = "INSERT INTO bob (id, fname, lname) VALUES " + part
 
     try:
-        cur.execute(insert_statement) 
-        if autocomplete: 
+        cur = conn.cursor()
+        cur.execute(insert_statement)
+        if should_commit:
             conn.commit()
     except (Exception, psycopg2.DatabaseError) as error:
         print(error)
@@ -62,40 +72,36 @@ def do_insert(conn, autocomplete, tuples):
 
 if __name__ == '__main__':
 
-    conn = connect()
-    cur = conn.cursor()
+    CONN = connect()
+    CUR = CONN.cursor()
 
-    cur.execute('DELETE FROM bob')
-    conn.commit()
+    CUR.execute('DELETE FROM bob')
+    CONN.commit()
 
     i = 1
-    tuples = []
-    while i <= 22277: 
+    TUPLES = []
+    while i <= 22277:
         if i % 100 == 0:
-            if not do_insert(conn, True, tuples):
+            if not do_insert(CONN, True, TUPLES):
                 print("do_insert() failed.")
-                sys.exit(27)
-            tuples = []
+                exit(27)
+            TUPLES = []
 
-        tuples.append((i, i, i));
+        TUPLES.append((i, i, i))
         i += 1
 
     # check if there are leftover tuples to INSERT
-    if len(tuples) > 0:
-        do_insert(conn, True, tuples);
+    if TUPLES:
+        if not do_insert(CONN, True, TUPLES):
+            print("do_insert() failed.")
+            exit(28)
 
-    # execute a statement
-    cur.execute('SELECT version()')
- 
-    # display the database server version
-    print(cur.fetchone())
-
-    cur.execute('SELECT * FROM bob ORDER BY id DESC')
+    CUR.execute('SELECT * FROM bob ORDER BY id DESC')
     while True:
-        rec = cur.fetchone()
-        if rec is None:
+        REC = CUR.fetchone()
+        if REC is None:
             break
-        #print(rec)
+        #print(REC)
 
-    conn.close()
- 
+    CUR.close()
+    CONN.close()
