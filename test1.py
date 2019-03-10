@@ -1,11 +1,11 @@
 #!/usr/bin/python
 
 import psycopg2
-#import ConfigParser
-#from config import config
 from configparser import ConfigParser
 
 def config(filename='database.ini', section='redshift'):
+    """ Parses .ini file, returns a map of the contents. 
+    """
 
     parser = ConfigParser()
     parser.read(filename)
@@ -13,23 +13,23 @@ def config(filename='database.ini', section='redshift'):
     db = {}
     if parser.has_section(section):
         params = parser.items(section)
+        print(params)
         for param in params:
             db[param[0]] = param[1]
     else:
-        raise Exception('Section {0} not found in the {1} file'.format(section, filename))
+        raise Exception('Filename {0} does not have a {1} section.'.format(filename, section))
  
     return db
 
 
 def connect():
-    """ Connect to the database server """
+    """ Connect to the database server 
+    """
     conn = None
+
     try:
-        # read connection parameters
         params = config()
-        print(params)
           
-        print('Connecting to the database...')
         conn = psycopg2.connect(**params)
  
     except (Exception, psycopg2.DatabaseError) as error:
@@ -48,17 +48,26 @@ if __name__ == '__main__':
     cur.execute('delete from bob')
     conn.commit()
 
-    i = 0
-    while i < 5000000: 
-        # f-string would be nice but gets confused on ().
-        #print(f"INSERT INTO bob (id, fname, lname) VALUES ({i},a{i},b{i})")
-        try:
-            cur.execute("INSERT INTO bob (id, fname, lname) VALUES ({},\'a{}\',\'b{}\')".format(i, i, i))
-        except (Exception, psycopg2.DatabaseError) as error:
-            print(error)
-        i += 1
+    i = 1
+    tuples = []
+    while i <= 50000: 
+        if i % 100 == 0:
+            part = ""
+            for tup in tuples:
+                part += "({},{},{}),".format(*tup)
 
-    conn.commit()
+            part = part[:-1]        #chop last character.
+            insert = "INSERT INTO bob (id, fname, lname) VALUES " + part
+            tuples = []
+            
+            try:
+                cur.execute(insert) 
+                conn.commit()
+            except (Exception, psycopg2.DatabaseError) as error:
+                print(error)
+
+        tuples.append((i, i, i));
+        i += 1
 
     # execute a statement
     cur.execute('SELECT version()')
@@ -71,7 +80,6 @@ if __name__ == '__main__':
         rec = cur.fetchone()
         if rec is None:
             break
-
         #print(rec)
 
     conn.close()
