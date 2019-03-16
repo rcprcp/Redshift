@@ -1,7 +1,6 @@
 #!/usr/bin/python
 """
-    test program to DELETE, INSERT and SELECT
-    from an AWS Redshift database.
+    test program for AWS Redshift database.
 """
 from configparser import ConfigParser
 import psycopg2
@@ -40,7 +39,7 @@ def connect():
 
     return local_conn
 
-def do_insert(conn, should_commit, tuples):
+def do_multi_value_insert(conn, should_commit, tuples):
     """
         Create a multi-value insert statement and execute it.
 
@@ -82,8 +81,8 @@ if __name__ == '__main__':
     TUPLES = []
     while i <= 22277:
         if i % 100 == 0:
-            if not do_insert(CONN, True, TUPLES):
-                print("do_insert() failed.")
+            if not do_multi_value_insert(CONN, True, TUPLES):
+                print("do_multi_value_insert() failed.")
                 exit(27)
             TUPLES = []
 
@@ -92,8 +91,8 @@ if __name__ == '__main__':
 
     # check if there are leftover tuples to INSERT
     if TUPLES:
-        if not do_insert(CONN, True, TUPLES):
-            print("do_insert() failed.")
+        if not do_multi_value_insert(CONN, True, TUPLES):
+            print("do_multi_value_insert() failed.")
             exit(28)
 
     CUR.close()
